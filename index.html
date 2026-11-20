@@ -1625,6 +1625,13 @@ p {
     font-size: .75rem;
   }
 }
+/* Refresh feedback, using the existing palette and button dimensions. */
+#rf2 { position:relative; }
+#rf2[aria-busy="true"] { opacity:.8; cursor:wait; }
+#rf2 .refresh-spin { display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; vertical-align:-2px; margin-right:6px; animation:refresh-spin .8s linear infinite; }
+#rf2 .refresh-spin[hidden] { display:none; }
+@keyframes refresh-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { #rf2 .refresh-spin { animation:none; } }
 </style>
 </template>
 
@@ -1636,10 +1643,10 @@ p {
 <span class="pill" id="sol">SOL –</span><button class="pill" id="srcb"><i class="live off" id="lv"></i><span id="srct">Sources</span></button><div class="pop" id="pop"></div></header>
 <main>
 <div class="view on" id="vl"><section class="lc" id="lc">
-<div class="bar"><div class="sw"><input id="q" placeholder="Search any token: name, symbol or mint  ( / )" autocomplete="off"><button class="xq" id="xq" aria-label="Clear">✕</button></div><button class="tg" id="hd"><i></i>Hide dead<b id="hdn"></b></button><button class="btn o" id="rf2">Refresh<kbd>R</kbd></button><button class="tg" id="pauseFeed" type="button" aria-pressed="false" title="Pause automatic token-list refreshes"><i></i><span>Pause</span></button></div>
-<div class="bar" id="tbr"><div class="seg" id="so"><i></i><button data-so="new" class="on">Newest</button><button data-so="hot">Hottest</button></div></div>
-<div class="bar" id="rb"><div class="presets" id="presets"></div><div class="seg" id="wn"><i></i><button data-v="m5">5m</button><button data-v="h1" class="on">1h</button><button data-v="h6">6h</button><button data-v="h24">24h</button></div><button class="tg" id="pp"><i></i>Pumping only</button><div class="seg" id="ml"><i></i><button data-ml="0" class="on">Any liq</button><button data-ml="5000">$5K</button><button data-ml="25000">$25K</button></div></div>
-<div class="note" id="nt"></div>
+<div class="bar"><div class="sw"><input id="q" placeholder="Search any token: name, symbol or mint  ( / )" autocomplete="off"><button class="xq" id="xq" aria-label="Clear">✕</button></div><button class="tg" id="hd"><i></i>Hide dead<b id="hdn"></b></button><button class="btn o" id="rf2" aria-busy="false"><span class="refresh-spin" hidden aria-hidden="true"></span><span id="rfLabel">Refresh</span><kbd>R</kbd></button><button class="tg" id="pauseFeed" type="button" aria-pressed="false" title="Pause automatic token-list refreshes"><i></i><span>Pause</span></button></div>
+<div class="bar" id="tbr"><div class="seg" id="so"><i></i><button data-so="new" class="on">Newest</button><button data-so="hot">A–Z</button></div></div>
+<div class="bar" id="rb"><div class="presets" id="presets"></div><div class="seg" id="wn"><i></i><button data-v="m5">5m</button><button data-v="h1" class="on">1h</button><button data-v="h6">6h</button><button data-v="h24">24h</button></div><button class="tg" id="pp"><i></i>Risk only</button><div class="seg" id="ml"><i></i><button data-ml="0" class="on">Any liq</button><button data-ml="5000">$5K</button><button data-ml="25000">$25K</button></div></div>
+<div class="note" id="nt"></div><span id="refreshAnnouncement" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)"></span>
 <div class="gr hd"><span></span><span>Token</span><span>Trend</span><span class="hm">5m</span><span>1h</span><span>Mkt cap</span><span class="hm">Liquidity</span><span class="hm">Buys / sells 5m</span><span>Score</span></div>
 <div class="vs" id="vs"><div id="vc"></div></div><button class="newp" id="nw">↑ <span id="nwc"></span> new</button></section>
 <aside class="card" id="sh"><button class="x" id="cl" aria-label="Close">✕</button><div id="pn"><div class="empty"><b>Pick a token</b>Click any row for live trades, chart and risk details.</div></div></aside></div>
@@ -1650,7 +1657,9 @@ p {
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const ld = (k, d) => {
     try {
-        return JSON.parse(localStorage.getItem(k)) || d;
+        const value = JSON.parse(localStorage.getItem(k));
+        if (value == null || (Array.isArray(d) ? !Array.isArray(value) : typeof value !== typeof d)) return d;
+        return value;
     }
     catch (e) {
         return d;
@@ -1662,7 +1671,7 @@ const ld = (k, d) => {
     catch (e) { }
 };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const cl = (x, a, b) => Math.max(a, Math.min(b, x)), sleep = ms => new Promise(r => setTimeout(r, ms)), num = x => x == null || x === '' || isNaN(+x) ? null : +x, nn = (a, b) => a == null && b == null ? null : (a || 0) + (b || 0);
+const cl = (x, a, b) => Math.max(a, Math.min(b, x)), sleep = ms => new Promise(r => setTimeout(r, ms)), num = x => x == null || x === '' || !['number','string'].includes(typeof x) || !Number.isFinite(+x) ? null : +x, nn = (a, b) => a == null || b == null ? null : a + b;
 const fm = n => n == null ? '–' : n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : n >= 100 ? n.toFixed(0) : n.toFixed(2), usd = n => n == null ? '–' : '$' + fm(n);
 const pc = n => n == null ? '–' : (n > 0 ? '+' : '') + n.toFixed(Math.abs(n) >= 100 ? 0 : 1) + '%', cls = n => n > 0 ? 'up' : n < 0 ? 'dn' : '';
 const age = ms => {
@@ -1684,7 +1693,7 @@ const pr = p => {
         return p.toFixed(2);
     if (p >= .01)
         return p.toFixed(4);
-    const s = p.toFixed(14), z = s.match(/^0\.(0*)/)[1].length;
+    const s = p.toFixed(14), z = s.match(/^0\.(0*)/)?.[1]?.length || 0;
     return z >= 3 ? `0.0<sub>${z}</sub>${s.slice(2 + z, 6 + z)}` : p.toFixed(6);
 };
 async function J(u, o) {
@@ -1724,7 +1733,7 @@ function mark(k, ok, c, err) {
         s.err = err || (typeof c === 'string' ? c : 'failed');
 }
 const T = new Map(), need = new Set(), subs = new Set(), VIS = new Set(), CAND = {}, PRI = ['ws', 'dex', 'jup', 'gt', 'pf'], MAXTR = 600;
-let SOLUSD = 150;
+let SOLUSD = null, SOL_TS = 0;
 const KS = ['price', 'mc', 'liq', 'm1', 'm5', 'h1', 'h6', 'h24', 'v5', 'v1', 'v6', 'v24', 'x5', 'x1', 'x6', 'x24', 'b5', 's5', 'b1', 's1', 'x1m', 'b1m', 's1m', 'pk5', 'holders', 'top10', 'mintOk', 'frzOk', 'pair', 'dex', 'cur', 'vsol', 'traders'];
 function tok(m) {
     let t = T.get(m);
@@ -1736,13 +1745,13 @@ function tok(m) {
 }
 function snap(m, src, o) {
     const t = tok(m);
-    t.s[src] = Object.assign(t.s[src] || {}, o, { ts: Date.now() });
+    t.s[src] = Object.assign({}, o, { ts: Date.now() });
     t.srcs.add(src);
     if (o.sym && !t.sym)
         t.sym = o.sym;
     if (o.name && !t.name)
         t.name = o.name;
-    if (o.created && (!t.created || o.created < t.created))
+    if (Number.isFinite(o.created) && o.created>0 && o.created<=Date.now() && (!t.created || o.created < t.created))
         t.created = o.created;
     if (!t.dex && o.dex)
         t.dex = o.dex;
@@ -1751,27 +1760,43 @@ function snap(m, src, o) {
         subTok(m);
     return t;
 }
+// Market snapshots expire; never silently substitute historical observations.
+const FIELD_TTL = { ws: 15000, dex: 90000, jup: 90000, gt: 150000, pf: 45000 };
+const AUDIT_FIELDS = new Set(['holders','top10','mintOk','frzOk']);
+function validField(k, x) {
+    if (x == null) return false;
+    if (k === 'mintOk' || k === 'frzOk') return typeof x === 'boolean';
+    if (k === 'pair' || k === 'dex') return typeof x === 'string' && x.length > 0;
+    return typeof x === 'number' && Number.isFinite(x) &&
+        (['m1','m5','h1','h6','h24'].includes(k) || x >= 0) &&
+        (k !== 'top10' || x <= 100);
+}
 function V(t) {
-    if (!t._d && t._v)
-        return t._v;
-    const now = Date.now(), v = {};
+    const now = Date.now();
+    if (!t._d && t._v && now < t._vUntil) return t._v;
+    const v = {}, provenance = {};
+    let expiry = now + 1000;
     for (const k of KS) {
-        let best = null, fb = null;
-        for (const p of PRI) {
+        v[k] = null;
+        const order = AUDIT_FIELDS.has(k) ? ['jup'] : PRI;
+        for (const p of order) {
             const s = t.s[p];
-            if (!s || s[k] == null)
-                continue;
-            if (now - s.ts < 15e4) {
-                best = s[k];
-                break;
-            }
-            if (!fb || s.ts > fb.ts)
-                fb = { v: s[k], ts: s.ts };
+            const ttl = AUDIT_FIELDS.has(k) ? 300000 : FIELD_TTL[p];
+            if (!s || !validField(k,s[k]) || now - s.ts >= ttl) continue;
+            if (p === 'ws' && (t.wsGap || t.mig || !subs.has(t.mint) || !SRC.ws.ok || now - (t.lastTr || 0) >= FIELD_TTL.ws)) continue;
+            v[k] = s[k]; provenance[k] = p; expiry = Math.min(expiry, s.ts + ttl); break;
         }
-        v[k] = best != null ? best : fb ? fb.v : null;
     }
-    t._v = v;
-    t._d = 0;
+    // Do not combine buy/sell/total counters from different snapshots.
+    for (const [b,s,x] of [['b5','s5','x5'],['b1','s1','x1'],['b1m','s1m','x1m']]) {
+        if (v[b] == null || v[s] == null || provenance[b] !== provenance[s]) v[b] = v[s] = v[x] = null;
+        else v[x] = v[b] + v[s];
+    }
+    if (t.audit && now - t.audit.ts < 300000) {
+        for (const k of ['mintOk','frzOk']) if (typeof t.audit[k] === 'boolean') { v[k] = t.audit[k]; provenance[k] = 'rpc'; }
+        expiry = Math.min(expiry, t.audit.ts + 300000);
+    }
+    t._provenance = provenance; t._v = v; t._vUntil = expiry; t._d = 0;
     return v;
 }
 /* mappers: each source's own format -> one shape */
@@ -1782,28 +1807,29 @@ function mapDex(p, all) {
     const c = p.priceChange || {}, X = p.txns || {}, Vo = p.volume || {}, g = (k, j) => X[k] ? num(X[k][j]) : null, tx = k => nn(g(k, 'buys'), g(k, 'sells')), liq = p.liquidity ? num(p.liquidity.usd) : null, e = T.get(m) && T.get(m).s.dex;
     if (e && Date.now() - e.ts < 4e3 && (e.liq || 0) > (liq || 0))
         return;
-    snap(m, 'dex', { sym: p.baseToken.symbol, name: p.baseToken.name, price: num(p.priceUsd), mc: num(p.marketCap) || num(p.fdv), liq, m5: num(c.m5), h1: num(c.h1), h6: num(c.h6), h24: num(c.h24), v5: num(Vo.m5), v1: num(Vo.h1), v6: num(Vo.h6), v24: num(Vo.h24), x5: tx('m5'), x1: tx('h1'), x6: tx('h6'), x24: tx('h24'), b5: g('m5', 'buys'), s5: g('m5', 'sells'), b1: g('h1', 'buys'), s1: g('h1', 'sells'), pair: p.pairAddress, dex: p.dexId, created: p.pairCreatedAt || 0 });
+    snap(m, 'dex', { sym: p.baseToken.symbol, name: p.baseToken.name, price: num(p.priceUsd), mc: num(p.marketCap), liq, m5: num(c.m5), h1: num(c.h1), h6: num(c.h6), h24: num(c.h24), v5: num(Vo.m5), v1: num(Vo.h1), v6: num(Vo.h6), v24: num(Vo.h24), x5: tx('m5'), x1: tx('h1'), x6: tx('h6'), x24: tx('h24'), b5: g('m5', 'buys'), s5: g('m5', 'sells'), b1: g('h1', 'buys'), s1: g('h1', 'sells'), pair: p.pairAddress, dex: p.dexId, created: p.pairCreatedAt || 0 });
 }
 function mapJup(x, all) {
     if (!x || !x.id || (!all && !PUMPOK.test(x.id)))
         return;
     const S = k => x['stats' + k] || {}, g = (o, k) => num(o[k]), tx = o => nn(num(o.numBuys), num(o.numSells)), vv = o => nn(num(o.buyVolume), num(o.sellVolume)), a = x.audit || {};
-    snap(x.id, 'jup', { sym: x.symbol, name: x.name, created: x.firstPool && x.firstPool.createdAt ? Date.parse(x.firstPool.createdAt) : 0, price: num(x.usdPrice), mc: num(x.mcap) || num(x.fdv), liq: num(x.liquidity), m5: g(S('5m'), 'priceChange'), h1: g(S('1h'), 'priceChange'), h6: g(S('6h'), 'priceChange'), h24: g(S('24h'), 'priceChange'), x5: tx(S('5m')), x1: tx(S('1h')), x6: tx(S('6h')), x24: tx(S('24h')), b5: g(S('5m'), 'numBuys'), s5: g(S('5m'), 'numSells'), b1: g(S('1h'), 'numBuys'), s1: g(S('1h'), 'numSells'), v5: vv(S('5m')), v1: vv(S('1h')), v6: vv(S('6h')), v24: vv(S('24h')), holders: num(x.holderCount), top10: num(a.topHoldersPercentage), mintOk: a.mintAuthorityDisabled, frzOk: a.freezeAuthorityDisabled });
+    snap(x.id, 'jup', { sym: x.symbol, name: x.name, created: x.firstPool && x.firstPool.createdAt ? Date.parse(x.firstPool.createdAt) : 0, price: num(x.usdPrice), mc: num(x.mcap), liq: num(x.liquidity), m5: g(S('5m'), 'priceChange'), h1: g(S('1h'), 'priceChange'), h6: g(S('6h'), 'priceChange'), h24: g(S('24h'), 'priceChange'), x5: tx(S('5m')), x1: tx(S('1h')), x6: tx(S('6h')), x24: tx(S('24h')), b5: g(S('5m'), 'numBuys'), s5: g(S('5m'), 'numSells'), b1: g(S('1h'), 'numBuys'), s1: g(S('1h'), 'numSells'), v5: vv(S('5m')), v1: vv(S('1h')), v6: vv(S('6h')), v24: vv(S('24h')), holders: num(x.holderCount), top10: num(a.topHoldersPercentage), mintOk: a.mintAuthorityDisabled, frzOk: a.freezeAuthorityDisabled });
 }
 function mapGt(d, all) {
     const a = d.attributes || {}, R = d.relationships || {}, b = R.base_token && R.base_token.data, m = b && b.id.replace('solana_', '');
     if (!m || (!all && !PUMPOK.test(m)))
         return;
     const P = a.price_change_percentage || {}, X = a.transactions || {}, Vo = a.volume_usd || {}, g = (k, j) => X[k] ? num(X[k][j]) : null, tx = k => nn(g(k, 'buys'), g(k, 'sells')), dx = R.dex && R.dex.data && R.dex.data.id;
-    snap(m, 'gt', { sym: (a.name || '').split(' / ')[0], price: num(a.base_token_price_usd), mc: num(a.market_cap_usd) || num(a.fdv_usd), liq: num(a.reserve_in_usd), created: a.pool_created_at ? Date.parse(a.pool_created_at) : 0, m5: num(P.m5), h1: num(P.h1), h6: num(P.h6), h24: num(P.h24), x5: tx('m5'), x1: tx('h1'), x6: tx('h6'), x24: tx('h24'), b5: g('m5', 'buys'), s5: g('m5', 'sells'), b1: g('h1', 'buys'), s1: g('h1', 'sells'), v5: num(Vo.m5), v1: num(Vo.h1), v6: num(Vo.h6), v24: num(Vo.h24), pair: a.address, dex: dx === 'pump-fun' ? 'pumpfun' : dx === 'pumpswap' ? 'pumpswap' : null });
+    snap(m, 'gt', { sym: (a.name || '').split(' / ')[0], price: num(a.base_token_price_usd), mc: num(a.market_cap_usd), liq: num(a.reserve_in_usd), created: a.pool_created_at ? Date.parse(a.pool_created_at) : 0, m5: num(P.m5), h1: num(P.h1), h6: num(P.h6), h24: num(P.h24), x5: tx('m5'), x1: tx('h1'), x6: tx('h6'), x24: tx('h24'), b5: g('m5', 'buys'), s5: g('m5', 'sells'), b1: g('h1', 'buys'), s1: g('h1', 'sells'), v5: num(Vo.m5), v1: num(Vo.h1), v6: num(Vo.h6), v24: num(Vo.h24), pair: a.address, dex: dx === 'pump-fun' ? 'pumpfun' : dx === 'pumpswap' ? 'pumpswap' : null });
 }
 /* pollers: every source runs on its own, failures never block the others */
 async function pollPf() {
     try {
         const a = await J('https://frontend-api-v3.pump.fun/coins?offset=0&limit=50&sort=created_timestamp&order=DESC&includeNsfw=true');
+        if(!Array.isArray(a)) throw Error('Unexpected response');
         let n = 0;
-        (Array.isArray(a) ? a : []).forEach(x => {
-            if (!x.mint)
+        a.forEach(x => {
+            if (!x || !x.mint)
                 return;
             n++;
             const vs = x.virtual_sol_reserves ? x.virtual_sol_reserves / 1e9 : null, t = snap(x.mint, 'pf', { sym: x.symbol, name: x.name, created: x.created_timestamp, mc: num(x.usd_market_cap), cur: x.complete ? 100 : vs != null ? cl((vs - 30) / 85 * 100, 0, 100) : null, vsol: vs, dex: x.complete ? 'pumpswap' : 'pumpfun' });
@@ -1811,14 +1837,17 @@ async function pollPf() {
                 t.creator = x.creator;
         });
         mark('pf', true, n);
+        return 'ok';
     }
     catch (e) {
         mark('pf', false, e.message);
+        return 'failed';
     }
 }
 async function pollJup(path) {
     try {
         const a = await J(JUP + path);
+        if(!Array.isArray(a)) throw Error('Unexpected response');
         let n = 0;
         (Array.isArray(a) ? a : []).forEach(x => {
             if (x && PUMPOK.test(x.id || '')) {
@@ -1827,20 +1856,23 @@ async function pollJup(path) {
             }
         });
         mark('jup', true, n);
+        return 'ok';
     }
     catch (e) {
         mark('jup', false, e.message);
+        return 'failed';
     }
 }
 async function pollGt(paths) {
     let n = 0;
     (await Promise.allSettled(paths.map(p => J(GT + '/' + p)))).forEach(x => {
-        if (x.status === 'fulfilled' && x.value.data) {
+        if (x.status === 'fulfilled' && Array.isArray(x.value?.data)) {
             n++;
             x.value.data.forEach(d => mapGt(d));
         }
     });
     mark('gt', n > 0, n, 'all calls failed');
+    return n === 0 ? 'failed' : n === paths.length ? 'ok' : 'partial';
 }
 async function pollDex() {
     let ok = 0;
@@ -1848,60 +1880,68 @@ async function pollDex() {
     R.forEach(x => {
         if (x.status !== 'fulfilled')
             return;
-        ok++;
         const v = x.value;
+        if(!Array.isArray(v) && !Array.isArray(v?.pairs)) return;
+        ok++;
         if (v && v.pairs)
             v.pairs.forEach(p => mapDex(p));
         else if (Array.isArray(v))
             v.forEach(y => y.chainId === 'solana' && PUMPOK.test(y.tokenAddress || '') && need.add(y.tokenAddress));
     });
     mark('dex', ok > 0, ok, 'all calls failed');
+    return ok === 0 ? 'failed' : ok === R.length ? 'ok' : 'partial';
 }
 async function enrich() {
-    const now = Date.now(), pick = [...need];
+    const now = Date.now(), pick = [];
+    const queued=[...need];
     need.clear();
     if (sel)
         pick.push(sel.mint);
     W.forEach(m => pick.push(m));
     VIS.forEach(m => pick.push(m));
+    queued.forEach(m=>pick.push(m));
     const old = [...T.values()].filter(t => t.pump && t.created && now - t.created < 864e5 && (!t.s.dex || now - t.s.dex.ts > (t.dead ? 3e5 : 45e3)) && !(t.s.ws && now - t.s.ws.ts < 9e3)).sort((a, b) => (a.s.dex ? a.s.dex.ts : 0) - (b.s.dex ? b.s.dex.ts : 0)).slice(0, 90);
     old.forEach(t => pick.push(t.mint));
-    const ms = [...new Set(pick)].slice(0, 150), ch = [];
+    const unique=[...new Set(pick)], ms=unique.slice(0,150), ch=[];
+    unique.slice(150).forEach(m=>{if(queued.includes(m)) need.add(m);});
     for (let i = 0; i < ms.length; i += 30)
         ch.push(ms.slice(i, i + 30));
     if (!ch.length)
-        return;
+        return 'skipped';
     let ok = 0;
     (await Promise.allSettled(ch.map(c => J(DS + '/tokens/v1/solana/' + c.join(','))))).forEach((x, i) => {
-        if (x.status !== 'fulfilled')
-            return;
+        if (x.status !== 'fulfilled' || !Array.isArray(x.value)) { ch[i].forEach(m=>need.add(m)); return; }
         ok++;
         const set = new Set(ch[i]);
         x.value.forEach(p => p.baseToken && set.has(p.baseToken.address) && mapDex(p, true));
     });
     if (ok)
         mark('dex', true);
+    return ok === 0 ? 'failed' : ok === ch.length ? 'ok' : 'partial';
 }
 async function loadSol() {
     try {
         const a = await J(DS + '/tokens/v1/solana/So11111111111111111111111111111111111111112'), p = a.sort((x, y) => ((y.liquidity || {}).usd || 0) - ((x.liquidity || {}).usd || 0))[0];
         if (p && +p.priceUsd) {
-            SOLUSD = +p.priceUsd;
+            SOLUSD = +p.priceUsd; SOL_TS = Date.now();
             $('#sol').textContent = 'SOL $' + SOLUSD.toFixed(2);
-            mark('dex', true);
+            return 'ok';
         }
+        throw new Error('SOL price unavailable');
     }
     catch (e) {
         try {
             const j = await J('https://lite-api.jup.ag/price/v3?ids=So11111111111111111111111111111111111111112');
             const p = Object.values(j)[0];
             if (p && p.usdPrice) {
-                SOLUSD = +p.usdPrice;
+                SOLUSD = +p.usdPrice; SOL_TS = Date.now();
                 $('#sol').textContent = 'SOL $' + SOLUSD.toFixed(2);
+                return 'ok';
             }
         }
         catch (x) { }
     }
+    return 'failed';
 }
 /* real-time feed: PumpPortal websocket (every new token, every trade) */
 /* Connection health: based on received messages, not just readyState.
@@ -2031,16 +2071,17 @@ function onWs(d) {
         if (seenSig.size > 4e4)
             seenSig.clear();
     }
-    const w = d.traderPublicKey;
+    const w = typeof d.traderPublicKey === 'string' && B58.test(d.traderPublicKey) ? d.traderPublicKey : null;
+    if ((d.txType === 'buy' || d.txType === 'sell') && (!w || num(d.solAmount) == null || num(d.solAmount) < 0 || num(d.tokenAmount) == null || num(d.tokenAmount) < 0 || num(d.marketCapSol) == null || num(d.marketCapSol) <= 0)) return;
     if (w && WLS.has(w) && (d.txType === 'buy' || d.txType === 'sell'))
-        addTrade({ sig: d.signature, w, t: now, side: d.txType, mint: d.mint, tok: d.tokenAmount, sol: d.solAmount, mc: d.marketCapSol * SOLUSD, src: 'PumpPortal' }, true);
+        addTrade({ sig: d.signature, w, t: now, side: d.txType, mint: d.mint, tok: +d.tokenAmount, sol: +d.solAmount, mc: SOLUSD && Date.now()-SOL_TS < 120000 ? +d.marketCapSol * SOLUSD : null, src: 'PumpPortal' }, true);
     if (d.txType === 'create') {
         const t = tok(d.mint);
         if (creationSeen.has(d.mint)) return;
         recordCreation(t, d);
-        Object.assign(t, { wsGap: false, full: true, created: now, creator: w, mc0: d.marketCapSol, vsol: d.vSolInBondingCurve, wsFrom: now, dex: 'pumpfun', lastTr: now, sym: d.symbol || t.sym, name: d.name || t.name, mig: 0 });
-        t.tw.add(w);
-        t.tr.push([now, 1, d.solAmount || 0, d.initialBuy || 0, d.marketCapSol, w]);
+        Object.assign(t, { wsGap: true, full: false, created: t.created ? Math.min(t.created,now) : now, creator: w, mc0: d.marketCapSol, vsol: d.vSolInBondingCurve, wsFrom: 0, dex: 'pumpfun', lastTr: now, sym: d.symbol || t.sym, name: d.name || t.name, mig: 0 });
+        if (w) t.tw.add(w);
+        if (w && num(d.solAmount) > 0 && num(d.marketCapSol) > 0) t.tr.push([now, 1, +d.solAmount, num(d.initialBuy) || 0, +d.marketCapSol, w]);
         subTok(d.mint);
         t._ws = 1;
         t._d = 1;
@@ -2061,10 +2102,12 @@ function onWs(d) {
     const t = T.get(d.mint);
     if (!t || !subs.has(d.mint) || t.mig)
         return;
-    if (!t.wsFrom)
+    if (!t.wsFrom) {
         t.wsFrom = now;
+        t.full = false;
+    }
     t.wsGap = false;
-    t.tr.push([now, d.txType === 'buy' ? 1 : 0, d.solAmount || 0, d.tokenAmount || 0, d.marketCapSol, w]);
+    t.tr.push([now, d.txType === 'buy' ? 1 : 0, +d.solAmount, +d.tokenAmount, +d.marketCapSol, w]);
     if (t.tr.length > MAXTR)
         t.tr.shift();
     t.lastTr = now;
@@ -2078,12 +2121,16 @@ function onWs(d) {
 }
 /* stats from our own trade stream (exact), windows only counted when we really saw the whole window */
 function wsCalc(t) {
-    if (t.mig || t.wsGap || !(ws && ws.readyState === 1 && SRC.ws.ok))
+    if (t.mig || t.wsGap || !(ws && ws.readyState === 1 && SRC.ws.ok)) {
+        if (t.s.ws) { delete t.s.ws; t._d = 1; }
         return;
+    }
     const now = Date.now(), tr = t.tr, n = tr.length;
-    if (!n && !t.mc0)
+    if ((!n && !t.mc0) || !subs.has(t.mint) || !SOLUSD || Date.now() - SOL_TS > 120000 || Date.now() - (t.lastTr || 0) >= FIELD_TTL.ws) {
+        if (t.s.ws) { delete t.s.ws; t._d = 1; }
         return;
-    const cur = n ? tr[n - 1][4] : t.mc0, cov = now - (t.wsFrom || now), S = SOLUSD, o = { price: cur * S / 1e9, mc: cur * S, dex: 'pumpfun', traders: t.tw.size, ts: now };
+    }
+    const cur = n ? tr[n - 1][4] : t.mc0, cov = now - (t.wsFrom || now), S = SOLUSD, o = { mc: cur * S, dex: 'pumpfun', traders: t.tw.size, ts: now }; // Price requires independently observed supply/price.
     const ok = ms => (t.full || cov >= ms) && (n < MAXTR || tr[0][0] <= now - ms), at = ms => {
         const c = now - ms;
         for (let i = n - 1; i >= 0; i--)
@@ -2111,10 +2158,8 @@ function wsCalc(t) {
     o.m5 = ch(3e5);
     o.h1 = ch(36e5);
     const w1 = win(6e4), w5 = win(3e5), w60 = win(36e5);
-    o.b1m = w1.b;
-    o.s1m = w1.s;
-    o.x1m = w1.b + w1.s;
-    o.pk5 = Math.max(w5.pk, cur) * S;
+    if (ok(6e4)) { o.b1m = w1.b; o.s1m = w1.s; o.x1m = w1.b + w1.s; }
+    if (ok(3e5)) o.pk5 = Math.max(w5.pk, cur) * S;
     if (ok(3e5)) {
         o.b5 = w5.b;
         o.s5 = w5.s;
@@ -2130,7 +2175,7 @@ function wsCalc(t) {
     if (t.vsol) {
         o.vsol = t.vsol;
         o.cur = cl((t.vsol - 30) / 85 * 100, 0, 100);
-        o.liq = Math.max(0, t.vsol - 30) * S;
+        // Virtual reserves are not withdrawable market liquidity; leave liquidity unknown here.
     }
     if (o.mc > t.peak)
         t.peak = o.mc;
@@ -2140,93 +2185,106 @@ function wsCalc(t) {
 }
 /* status: recomputed continuously, so DUMPING/PUMPING clear the moment conditions stop */
 function judge(t) {
-    const v = V(t), now = Date.now(), a = (now - (t.created || now)) / 6e4, own = !!(t.s.ws && now - t.s.ws.ts < 9e3), lt = own ? t.lastTr : (v.x5 > 0 ? now : 0), act = (v.x5 || 0) >= 2 || (lt && now - lt < 3e5);
-    const dying = (a > 3 && !act) || (t.peak > 0 && v.mc != null && v.mc <= t.peak * .1 && a > 2) || (t.dex === 'pumpswap' && v.liq != null && v.liq < 300 && a > 15);
-    const rev = own ? (lt && now - lt < 9e4 && (v.b1m || 0) > (v.s1m || 0) && (v.m1 || 0) >= 3) : ((v.x5 || 0) >= 3 && (v.b5 || 0) > (v.s5 || 0) && (v.m5 || 0) >= 3);
-    if (!t.dead && dying) {
-        t.dead = true;
-        t.deadAt = now;
-    }
-    else if (t.dead && rev) {
-        t.dead = false;
-        t.rev = now;
-        if (hideDead && t.created && T.size && VISALL.has(t.mint))
-            toast('Back from the dead: $' + (t.sym || short(t.mint)), 'g');
-    }
-    const m1 = v.m1 || 0, m5 = v.m5 || 0, h1 = v.h1 || 0;
-    let st = 'STEADY';
-    const dump = own ? ((m1 <= -5 && (v.s1m || 0) > (v.b1m || 0)) || (m5 <= -20 && m1 < 0)) : (m5 <= -12 && (v.s5 || 0) > (v.b5 || 0)), pump = own ? ((m1 >= 4 && (v.b1m || 0) >= (v.s1m || 0) && (v.x1m || 0) >= 3) || (m5 >= 15 && m1 >= 0 && (v.b5 || 0) >= (v.s5 || 0))) : (m5 >= 6 && h1 >= 10 && (v.b5 || 0) >= (v.s5 || 0) && (v.x5 || 0) >= 5), cool = !pump && (own ? (v.pk5 && v.mc != null && v.mc <= v.pk5 * .9) : (h1 >= 25 && m5 <= 0));
-    st = t.dead ? 'DEAD' : dump ? 'DUMPING' : pump ? 'PUMPING' : cool ? 'COOLING' : a < 1.5 && (v.x5 || 0) <= 1 ? 'NEW' : 'STEADY';
-    if (st !== t.st) {
-        t.st = st;
-        t.stT = now;
-    }
+    const v = V(t), now = Date.now(), a = t.created ? (now-t.created)/60000 : null;
+    const hasWindow = v.x5 != null && v.b5 != null && v.s5 != null;
+    const noActivity = hasWindow && v.x5 === 0;
+    // An inactive window is not proof of death or a rug pull.
+    const inactive = a != null && a >= 10 && noActivity;
+    const own = t._provenance && t._provenance.m1 === 'ws';
+    const m1 = v.m1, m5 = v.m5, h1 = v.h1;
+    const previouslyInactive = t.dead;
+    t.dead = inactive;
+    if (previouslyInactive && hasWindow && v.x5 > 0) t.rev = now;
+    if (v.mc != null && v.mc > 0) t.peak = Math.max(t.peak || 0, v.mc);
+    const dump = (own && m1 != null && m1 <= -5 && v.b1m != null && v.s1m > v.b1m) || (hasWindow && m5 != null && m5 <= -12 && v.s5 > v.b5);
+    const pump = (own && m1 != null && m1 >= 4 && v.x1m >= 3 && v.b1m != null && v.b1m >= v.s1m) || (hasWindow && m5 != null && h1 != null && m5 >= 6 && h1 >= 10 && v.b5 >= v.s5 && v.x5 >= 5);
+    const cool = !pump && ((v.pk5 != null && v.mc != null && v.mc <= v.pk5 * .9) || (h1 != null && m5 != null && h1 >= 25 && m5 <= 0));
+    const st = inactive ? 'DEAD' : dump ? 'DUMPING' : pump ? 'PUMPING' : cool ? 'COOLING' : !hasWindow || m5 == null ? (a != null && a < 1.5 ? 'NEW' : 'UNKNOWN') : 'STEADY';
+    if (st !== t.st) { t.st = st; t.stT = now; }
     return st;
 }
+// This measures completeness of current observations, NOT investment quality or safety.
 function score(t) {
-    if (t.dead)
-        return 0;
-    const v = V(t), a = (Date.now() - t.created) / 6e4, n1 = (v.b1 || 0) + (v.s1 || 0), bs = n1 >= 15 ? v.b1 / n1 : .5, n5 = (v.b5 || 0) + (v.s5 || 0), bs5 = n5 >= 4 ? v.b5 / n5 : .5, vel = v.x1 ? (v.x5 || 0) * 12 / v.x1 : 0;
-    let p = cl(v.m5 || 0, 0, 25) / 25 * 10 + cl(v.h1 || 0, 0, 120) / 120 * 14 * ((v.m5 || 0) < 0 ? .3 : 1) + ((v.x5 || 0) >= 3 ? cl(vel, 0, 3) / 3 * 16 : 0) + cl((bs - .4) / .3, 0, 1) * 8 + cl((bs5 - .4) / .3, 0, 1) * 8 + cl(Math.log10(Math.max(v.liq || 1, 1) / 3000) * 11, 0, 18) + (a < 5 ? a / 5 * 3 : a <= 360 ? 8 : a <= 1440 ? 5 : 2) + (v.top10 != null ? cl((60 - v.top10) / 60, 0, 1) * 8 : 4);
-    p = p / 90 * 100;
-    const k = { DUMPING: .3, COOLING: .85 }[t.st] || 1;
-    return Math.round(p * k * (v.mintOk === false ? .7 : 1) * ((v.h1 || 0) > 300 ? .7 : 1));
+    const v = V(t);
+    const fields = [['price',10],['mc',10],['liq',15],['m5',10],['h1',5],['x5',10],['holders',5],['top10',15],['mintOk',10],['frzOk',10]];
+    return fields.reduce((n,[k,w]) => n + (v[k] != null ? w : 0), 0);
+}
+function riskFacts(t, v) {
+    const out = [];
+    if (v.mintOk === false) out.push('Mint authority active');
+    if (v.frzOk === false) out.push('Freeze authority active');
+    if (v.mintOk == null) out.push('Mint authority unknown');
+    if (v.frzOk == null) out.push('Freeze authority unknown');
+    if (v.top10 == null) out.push('Holder concentration unknown');
+    else if (v.top10 >= 35) out.push('Concentrated holders (reported)');
+    if (v.liq == null) out.push('Current liquidity unknown');
+    if (v.x5 == null) out.push('Recent trade coverage incomplete');
+    if (t.pump && !t.mig && !subs.has(t.mint)) out.push('No individual live trade subscription');
+    if (v.m5 != null && v.m5 <= -30) out.push('Sharp reported price decline');
+    if (t.audit && Date.now()-t.audit.ts < 300000 && t.audit.extensions.length) out.push('Token extensions present; review required');
+    if (t.audit && Date.now()-t.audit.ts < 300000 && t.audit.largestPct != null && t.audit.largestPct >= 25) out.push('Largest token account ≥25% of supply (may be a pool)');
+    if (t.audit && Date.now()-t.audit.ts < 300000 && t.audit.largestPct == null) out.push('Largest-account check incomplete');
+    if (t._provenance && v.price != null) {
+        const prices = Object.entries(t.s).filter(([k,s]) => k !== 'ws' && Date.now()-s.ts < 60000 && validField('price',s.price) && s.price > 0).map(([k,s])=>s.price);
+        if (prices.length > 1 && Math.max(...prices)/Math.min(...prices) > 1.25) out.push('Price sources disagree');
+    }
+    return out;
 }
 /* ===== state ===== */
-let tabv = ld('tr:tab', 'trench'), sel = null, q = '', pre = 'best', win = 'h1', hideDead = ld('tr:hd', false), pumpOnly = false, minL = 0, tso = 'new', ITEMS = [], IDX = new Map(), anchor = null, npend = 0, VISALL = new Set(), qT = 0;
+let tabv = ld('tr:tab', 'radar'), sel = null, q = '', pre = 'best', win = 'h1', hideDead = ld('tr:hd', false), pumpOnly = false, minL = 0, tso = 'new', ITEMS = [], IDX = new Map(), anchor = null, npend = 0, VISALL = new Set(), qT = 0;
 const W = new Set(ld('tr:w', [])), els = new Map(), H = 62;
-const ST = { PUMPING: ['p', 'PUMPING'], DUMPING: ['d', 'DUMPING'], COOLING: ['c', 'COOLING'], DEAD: ['z', 'DEAD'], NEW: ['n', 'NEW'], STEADY: ['', ''] };
+const ST = { UNKNOWN: ['w', 'UNKNOWN'], PUMPING: ['p', 'PUMPING'], DUMPING: ['d', 'DUMPING'], COOLING: ['c', 'COOLING'], DEAD: ['z', 'INACTIVE'], NEW: ['n', 'NEW'], STEADY: ['', ''] };
 const WK = { m5: ['m5', 'x5', 'v5'], h1: ['h1', 'x1', 'v1'], h6: ['h6', 'x6', 'v6'], h24: ['h24', 'x24', 'v24'] }, TXM = { m5: 3, h1: 20, h6: 80, h24: 250 }, WLB = { m5: '5m', h1: '1h', h6: '6h', h24: '24h' };
-const PRS = [['best', 'Best', (t, v) => !t.dead && (v.liq || 0) >= 3e3, t => score(t), 'Alive, $3K+ liquidity. Ranked by the Best score: momentum, acceleration, buy pressure, liquidity, holders.'],
-    ['hot', 'Hot', (t, v) => !t.dead && (v.liq || 0) >= 3e3, (t, v) => v[WK[win][1]] || 0, 'Most transactions in {w}. Alive, $3K+ liquidity.'],
-    ['gain', 'Gainers', (t, v) => !t.dead && (v.liq || 0) >= 3e3 && (v[WK[win][1]] || 0) >= TXM[win], (t, v) => v[win] == null ? -1e9 : v[win], 'Biggest price rise in {w} with real trading behind it.'],
-    ['vol', 'Volume', (t, v) => !t.dead && (v.liq || 0) >= 3e3, (t, v) => v[WK[win][2]] || 0, 'Highest volume in {w}. Alive, $3K+ liquidity.'],
-    ['grad', 'Graduating', (t, v) => !t.dead && v.dex !== 'pumpswap' && v.cur != null, (t, v) => v.cur, 'Still on the bonding curve, closest to graduating first.'],
-    ['safe', 'Safest', (t, v) => !t.dead && (v.liq || 0) >= 2e4 && Date.now() - t.created > 36e5 && v.mintOk !== false && (v.top10 == null || v.top10 < 35), (t, v) => v.liq || 0, 'Liquidity and available holder/authority data only; not a safety guarantee. Unknown fields may pass. Deepest first.'],
-    ['star', 'Watchlist', t => W.has(t.mint), t => score(t), 'Your starred tokens, ranked by Best score.']];
-function buildItems() {
-    const now = Date.now(), sq = q.toLowerCase(), A = [];
-    let dead = 0, live = 0, fresh = 0;
-    VISALL = new Set();
-    const P = PRS.find(x => x[0] === pre), radar = tabv === 'radar';
-    for (const t of T.values()) {
-        if (sq) {
-            if (!(t.sym + ' ' + t.name + ' ' + t.mint).toLowerCase().includes(sq))
-                continue;
-            A.push(t);
-            continue;
-        }
-        if (!(t.pump || W.has(t.mint)) || !t.created)
-            continue;
-        if (t.dead)
-            dead++;
-        else if (now - t.lastTr < 3e5 || (V(t).x5 || 0) > 0)
-            live++;
-        if (now - t.created < 3e5)
-            fresh++;
-        if (hideDead && t.dead)
-            continue;
-        if (radar) {
-            const v = V(t);
-            if (!P[2](t, v) || (v.liq || 0) < minL || (pumpOnly && t.st !== 'PUMPING'))
-                continue;
-        }
-        A.push(t);
+const RADAR_AGE = 60 * 60 * 1000;
+const marketObserved = v => v.price != null || v.mc != null || v.liq != null || v.x5 != null;
+const established = (t,v,now=Date.now()) => !!t.created && now-t.created >= RADAR_AGE && marketObserved(v);
+const confirmedFlags = (t,v) => riskFacts(t,v).filter(x => !/unknown|incomplete|No individual|review required/i.test(x));
+const hasRisk = (t,v) => confirmedFlags(t,v).length > 0;
+const byName = (a,b) => (a.sym||a.name||a.mint).localeCompare(b.sym||b.name||b.mint) || a.mint.localeCompare(b.mint);
+const PRS = [
+    ['best','Overview',(t,v)=>true,()=>0,'Reported launch/pool age at least 1h, alphabetical. Not a quality rating.'],
+    ['hot','Activity',(t,v)=>v[WK[win][1]]!=null,()=>0,'Reported transaction counts in {w}; alphabetical.'],
+    ['gain','Changes',(t,v)=>v[win]!=null,()=>0,'Reported price changes in {w}; alphabetical, both directions.'],
+    ['vol','Volume',(t,v)=>v[WK[win][2]]!=null,()=>0,'Reported volume in {w}; alphabetical. Volume can be artificial.'],
+    ['grad','Coverage',(t,v)=>score(t)<100,t=>100-score(t),'Missing or expired market and security observations; largest gaps first.'],
+    ['safe','Risk flags',(t,v)=>hasRisk(t,v), (t,v)=>confirmedFlags(t,v).length,'Reported warning signs, not confirmed scams.'],
+    ['star','Watchlist',t=>W.has(t.mint),()=>0,'All saved mints; liquidity and risk filters do not hide them.']
+];
+function classifyList(t, now, radar, preset, searchText) {
+    const v=V(t);
+    if (searchText) {
+        const exact=B58.test(searchText);
+        const match=exact?t.mint===searchText:(t.sym+' '+t.name+' '+t.mint).toLowerCase().includes(searchText.toLowerCase());
+        return match;
     }
-    let key;
-    if (sq)
-        key = t => -(t.sym.toLowerCase() === sq ? 2 : t.sym.toLowerCase().startsWith(sq) ? 1 : 0) * 1e15 - (V(t).liq || 0);
-    else if (radar)
-        key = t => -P[3](t, V(t));
-    else
-        key = tso === 'hot' ? t => -((V(t).x1m || 0) * 5 + (V(t).x5 || 0)) : t => -t.created;
-    const K = new Map(A.map(t => [t, key(t)]));
-    A.sort((a, b) => K.get(a) - K.get(b));
-    A.forEach(t => VISALL.add(t.mint));
-    const lead = sq ? A.length + ' results across all sources' : radar ? A.length + ' tokens' : A.length + ' tokens, newest first';
-    $('#nt').innerHTML = esc(lead) + ' · ' + live + ' trading now · ' + fresh + ' new in 5m · ' + (radar ? esc(P[4].replace(/\{w\}/g, WLB[win])) : 'Every token from every source, merged by mint address.');
-    $('#hdn').textContent = dead ? dead + ' hidden' : '';
-    if (feedPaused) $('#nt').textContent += ' · Automatic list refresh paused';
+    if (radar && preset[0]==='star') return W.has(t.mint);
+    if ((!radar && !(t.pump || W.has(t.mint))) || !t.created) return false;
+    if (radar ? !established(t,v,now) : !(now-t.created>=0 && now-t.created<RADAR_AGE)) return false;
+    if (hideDead && t.dead) return false;
+    if (!radar) return true;
+    return preset[2](t,v) && (!minL || (v.liq!=null && v.liq>=minL)) && (!pumpOnly || hasRisk(t,v));
+}
+function buildItems() {
+    const now=Date.now(), sq=q.trim(), A=[], radar=tabv==='radar', P=PRS.find(x=>x[0]===pre)||PRS[0];
+    let dead=0, active=0, fresh=0;
+    VISALL=new Set();
+    for(const t of T.values()) {
+        const v=V(t), inScope=radar ? established(t,v,now) : !!t.created && now-t.created>=0 && now-t.created<RADAR_AGE;
+        if(inScope && (radar||t.pump||W.has(t.mint))) { if(t.dead)dead++; if(v.x5>0)active++; if(now-t.created<300000)fresh++; }
+        if(classifyList(t,now,radar,P,sq)) A.push(t);
+    }
+    if(sq) A.sort((a,b)=>(Number(b.mint===sq)-Number(a.mint===sq)) || byName(a,b));
+    else if(radar) A.sort((a,b)=>P[3](b,V(b))-P[3](a,V(a)) || byName(a,b));
+    else if(tso==='hot') A.sort((a,b)=>byName(a,b));
+    else A.sort((a,b)=>b.created-a.created || byName(a,b));
+    A.forEach(t=>VISALL.add(t.mint));
+    const notes=sq?'Global search; tab filters are bypassed.':radar?P[4].replace(/\{w\}/g,WLB[win]):'Observed launches/pools under 1h old · '+(tso==='hot'?'alphabetical':'newest first');
+    $('#nt').textContent=A.length+' '+(sq?'search results':'tokens')+' · '+active+' with reported recent trades · '+notes;
+    if(radar && !sq && !A.length) $('#nt').textContent+=' · Waiting for matching market data; no launch fallback.';
+    $('#hdn').textContent=hideDead&&dead?dead+' inactive':'';
+    if(subs.size>=900) $('#nt').textContent+=' · Trade subscription limit reached';
+    if(feedPaused) $('#nt').textContent+=' · Automatic list refresh paused';
+    if(refreshSummary) $('#nt').textContent+=' · '+refreshSummary;
     return A;
 }
 /* ===== virtual list: every token is reachable, only visible rows exist in the DOM ===== */
@@ -2252,15 +2310,20 @@ function fill(el, t) {
     }
     set('sym', esc(t.sym || short(t.mint)));
     bd('stt', ST[t.st] || ST.STEADY);
-    bd('tag', t.rev && Date.now() - t.rev < 18e4 ? ['r', 'REVIVED'] : !t.pump ? ['w', 'NOT PUMP'] : ['', '']);
-    set('sub', age(t.created) + ' · ' + (v.x5 != null ? v.x5 : 0) + ' tx/5m' + (t.name ? ' · ' + esc(t.name).slice(0, 16) : ''));
+    const flags = riskFacts(t,v);
+    const decline = flags.includes('Sharp reported price decline');
+    bd('tag', decline ? ['d','DECLINE'] : flags.includes('Price sources disagree') ? ['c','DATA CONFLICT'] : t.rev && Date.now() - t.rev < 18e4 ? ['r','ACTIVITY RESUMED'] : !t.pump ? ['w','NOT PUMP'] : ['', '']);
+    n.tag.title = decline ? 'Sharp reported decline; not proof of a rug pull.' : flags.includes('Price sources disagree') ? 'Current sources report different prices.' : '';
+    set('sub', age(t.created) + ' · ' + (v.x5 != null ? v.x5 : '–') + ' tx/5m' + (t.name ? ' · ' + esc(t.name).slice(0, 16) : ''));
     const cv = v.dex !== 'pumpswap' && v.cur != null;
     n.cv.parentNode.style.display = cv ? '' : 'none';
     if (cv)
         n.cv.style.width = v.cur + '%';
     set('spk', spk(t));
     set('m5', '<span class="' + cls(v.m5) + '">' + pc(v.m5) + '</span>');
-    set('h1', '<span class="' + cls(v.h1) + '">' + pc(v.h1) + '</span>');
+    const metric=tabv==='radar'&&['hot','gain','vol'].includes(pre)?win:'h1';
+    const shown=tabv==='radar'&&pre==='hot'?(v[WK[metric][1]]==null?'–':fm(v[WK[metric][1]])):tabv==='radar'&&pre==='vol'?usd(v[WK[metric][2]]):'<span class="'+cls(v[metric])+'">'+pc(v[metric])+'</span>';
+    set('h1',shown);
     set('mc', usd(v.mc));
     set('liq', usd(v.liq));
     set('bs', (v.b5 == null ? '–' : v.b5) + ' / ' + (v.s5 == null ? '–' : v.s5));
@@ -2302,6 +2365,8 @@ function vrender(anim) {
         if (!el) {
             el = mkRow();
             el.dataset.m = m;
+            el._st.dataset.s=m;
+            el._st.setAttribute('aria-label','Toggle watchlist');
             els.set(m, el);
             vc.appendChild(el);
             if (anim) {
@@ -2321,7 +2386,7 @@ function vrender(anim) {
     if (e)
         e.remove();
     if (!ITEMS.length) {
-        vc.insertAdjacentHTML('beforeend', '<div class="empty"><b>' + (q ? 'Searching every source…' : 'Waiting for tokens…') + '</b>' + (q ? 'Results appear as sources answer.' : 'The live feed fills this list the moment tokens appear.') + '</div>');
+        vc.insertAdjacentHTML('beforeend','<div class="empty"><b>'+ (q?'No observed matches':tabv==='radar'&&pre==='star'?'Watchlist is empty':'No matching tokens yet')+'</b>'+ (q?'Search sources may still be responding.':tabv==='radar'?'Waiting for matching established-market observations or saved mints.':'Waiting for observed recent launches.')+'</div>');
     }
 }
 function setAnchor() { const sc = $('#vs'), f = ITEMS[Math.min(ITEMS.length - 1, Math.floor(sc.scrollTop / H))]; anchor = f ? { m: f.mint, i: IDX.get(f.mint) } : null; $('#nw').classList.toggle('show', npend > 0 && sc.scrollTop > H); $('#nwc').textContent = npend; }
@@ -2340,6 +2405,8 @@ pauseFeedButton.addEventListener('click', () => {
     } else refreshList(true);
 });
 function refreshList(anim) {
+    const head=$('.gr.hd').children[4];
+    head.textContent=tabv==='radar'&&pre==='hot'?WLB[win]+' tx':tabv==='radar'&&pre==='vol'?WLB[win]+' vol':tabv==='radar'&&pre==='gain'?WLB[win]+' Δ':'1h';
     const A = buildItems(), sc = $('#vs'), vc = $('#vc');
     IDX = new Map(A.map((t, i) => [t.mint, i]));
     if (anchor && sc.scrollTop > H) {
@@ -2392,14 +2459,14 @@ function spk(t, w, h, area) {
     w = w || Math.round(matchMedia("(max-width:480px)").matches ? Math.max(52, Math.min(84, innerWidth * .17)) : matchMedia("(max-width:1000px)").matches ? Math.max(56, Math.min(112, innerWidth * .18)) : Math.max(96, Math.min(132, innerWidth * .086)));
     h = h || 36;
     const now = Date.now(), tr = t.tr;
-    if (tr.length >= 3) {
-        const pts = tr.map(x => [x[0], x[4]]);
-        pts.push([now, tr[tr.length - 1][4]]);
+    if (tr.length >= 3 && !t.mig && !t.wsGap && SRC.ws.ok && now - (t.lastTr || 0) < 150000) {
+        const pts = tr.filter(x=>x[0]>=(t.wsFrom||0)).map(x=>[x[0],x[4]]);
+        if(pts.length<3) return est(t,w,h)||'<small>–</small>';
         const step = Math.ceil(pts.length / 70), p2 = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
         return line(p2, w, h, p2[p2.length - 1][1] >= p2[0][1] ? 'var(--g)' : 'var(--r)', 0, area);
     }
     const c = CAND[t.mint];
-    if (c && c.v && c.v.length > 2) {
+    if (c && c.v && c.v.length > 2 && now-c.t < 300000) {
         const p2 = c.v.map((y, i) => [i, y]);
         return line(p2, w, h, c.v[c.v.length - 1] >= c.v[0] ? 'var(--g)' : 'var(--r)', 0, area);
     }
@@ -2411,7 +2478,7 @@ const cq = [];
 let cbusy = 0;
 function wantCandle(t) {
     const v = V(t);
-    if (!v.pair || t.tr.length >= 3 || cq.length > 12)
+    if (!v.pair || (t.tr.length >= 3 && !t.mig && !t.wsGap && Date.now()-(t.lastTr||0)<150000) || cq.length > 12)
         return;
     const c = CAND[t.mint];
     if (c && (c.p || Date.now() - c.t < 18e4))
@@ -2444,6 +2511,7 @@ function selectTok(t) {
     subTok(t.mint);
     need.add(t.mint);
     wantCandle(t);
+    auditMint(t);
     els.forEach((el, m) => el.classList.toggle('on', m === t.mint));
     $('#pn').innerHTML = `<div id="d-h"></div><div id="d-c" style="margin:8px 0"></div><div id="d-s"></div><div id="d-t"></div>`;
     $('#pn').dataset.m = t.mint;
@@ -2465,8 +2533,8 @@ function detailTick() {
     if (!t || !$('#d-h'))
         return;
     const v = V(t), S = ST[t.st] || ST.STEADY, now = Date.now(), sc = score(t), srcs = [...t.srcs].map(x => SRC[x] ? SRC[x].name : x).join(', ');
-    setH('#d-h', `<h2>${esc(t.name || t.sym || short(t.mint))} <small>$${esc(t.sym)}</small></h2><p><span class="bd ${S[0] || 'n'}">${S[1] || 'STEADY'}</span> <span class="bd n">Score ${sc}</span>${t.pump ? '' : ' <span class="bd w">NOT PUMP</span>'}</p><p><small style="word-break:break-all">${esc(t.mint)}</small></p><p><button class="btn o" data-cp="${esc(t.mint)}">Copy mint</button> <button class="btn o" data-s="${esc(t.mint)}">${W.has(t.mint) ? '★ Starred' : '☆ Star'}</button></p>`);
-    const tr = t.tr, line_ = tr.length >= 3 ? spk(t, 330, 90, 1) + `<small>${tr.length} real trades from the live feed.</small>` : (CAND[t.mint] && CAND[t.mint].v && CAND[t.mint].v.length > 2 ? spk(t, 330, 90, 1) + '<small>Real 5-minute candles (GeckoTerminal).</small>' : (est(t, 330, 90) || '') + '<small>Dashed line is an estimate from price changes. Real data loads when available.</small>');
+    setH('#d-h', `<h2>${esc(t.name || t.sym || short(t.mint))} <small>$${esc(t.sym)}</small></h2><p><span class="bd ${S[0] || 'n'}">${S[1] || 'STEADY'}</span> <span class="bd n">Data ${sc}%</span>${t.pump ? '' : ' <span class="bd w">NOT PUMP</span>'}</p><p><small style="word-break:break-all">${esc(t.mint)}</small></p><p><button class="btn o" data-cp="${esc(t.mint)}">Copy mint</button> <button class="btn o" data-s="${esc(t.mint)}">${W.has(t.mint) ? '★ Starred' : '☆ Star'}</button></p>`);
+    const tr = t.tr, line_ = tr.filter(x=>x[0]>=(t.wsFrom||0)).length >= 3 && !t.mig && !t.wsGap && SRC.ws.ok && now-(t.lastTr||0)<150000 ? spk(t, 330, 90, 1) + `<small>${tr.length} observed trades; coverage may be incomplete.</small>` : (CAND[t.mint] && CAND[t.mint].v && CAND[t.mint].v.length > 2 && now-CAND[t.mint].t<300000 ? spk(t, 330, 90, 1) + '<small>Real 5-minute candles (GeckoTerminal).</small>' : (est(t, 330, 90) || '') + '<small>Dashed line is an estimate from price changes. Real data loads when available.</small>');
     setH('#d-c', line_);
     const cv = v.dex !== 'pumpswap' && v.cur != null, b = v.b5 || 0, s = v.s5 || 0;
     const launchFacts = t.launchCreator || t.initialBuySol != null || t.initialBuyTokens != null
@@ -2475,15 +2543,17 @@ function detailTick() {
         <div class="kv"><span>Creator launches observed</span><b>${t.launchCreator ? creatorCounts.get(t.launchCreator) || '–' : '–'}</b></div>
         <p><small>Launch transaction only; not current holdings. Creator count covers this session, not all on-chain history.</small></p>`
         : '';
-    setH('#d-s', (cv ? `<div class="kv"><span>Bonding curve</span><b>${v.cur.toFixed(0)}% to graduation</b></div><i class="cv" style="height:6px"><u style="width:${v.cur}%"></u></i>` : '') + `<div class="kv"><span>Price</span><b>$${pr(v.price)}</b></div><div class="kv"><span>Market cap</span><b>${usd(v.mc)}</b></div><div class="kv"><span>Liquidity</span><b>${usd(v.liq)}</b></div><div class="kv"><span>Change 1m / 5m / 1h / 24h</span><b><span class="${cls(v.m1)}">${pc(v.m1)}</span> / <span class="${cls(v.m5)}">${pc(v.m5)}</span> / <span class="${cls(v.h1)}">${pc(v.h1)}</span> / <span class="${cls(v.h24)}">${pc(v.h24)}</span></b></div><div class="kv"><span>Buys / sells 5m</span><b>${v.b5 == null ? '–' : b} / ${v.s5 == null ? '–' : s}</b></div><div class="kv"><span>Buys / sells 1h</span><b>${v.b1 == null ? '–' : v.b1} / ${v.s1 == null ? '–' : v.s1}</b></div><div class="kv"><span>Volume 5m / 1h / 24h</span><b>${usd(v.v5)} / ${usd(v.v1)} / ${usd(v.v24)}</b></div><div class="kv"><span>Traders seen</span><b>${v.traders == null ? t.tw.size || '–' : v.traders}</b></div><div class="kv"><span>Holders</span><b>${v.holders == null ? '–' : fm(v.holders)}</b></div><div class="kv"><span>Top 10 holders</span><b>${v.top10 == null ? '–' : v.top10.toFixed(1) + '%'}</b></div>${launchFacts}<p>${v.mintOk == null ? '' : `<span class="fl${v.mintOk ? ' ok' : ''}">${v.mintOk ? 'Mint authority revoked' : 'Mint authority ACTIVE'}</span><span class="fl${v.frzOk ? ' ok' : ''}">${v.frzOk ? 'Freeze authority revoked' : 'Freeze authority ACTIVE'}</span>`}${t.creator ? `<button class="btn o" data-trk="${esc(t.creator)}">Track dev ${short(t.creator)}</button>` : ''}</p><p><small>Age ${age(t.created)} · seen by ${esc(srcs)}</small></p><p><a target="_blank" rel="noopener" href="https://pump.fun/coin/${encodeURIComponent(t.mint)}">pump.fun</a> · <a target="_blank" rel="noopener" href="https://dexscreener.com/solana/${encodeURIComponent(t.mint)}">DexScreener</a> · <a target="_blank" rel="noopener" href="https://solscan.io/token/${encodeURIComponent(t.mint)}">Solscan</a> · <a target="_blank" rel="noopener" href="https://rugcheck.xyz/tokens/${encodeURIComponent(t.mint)}">RugCheck</a></p>`);
-    setH('#d-t', tr.length ? '<h2 style="margin-top:6px">Live trades</h2>' + tr.slice(-25).reverse().map(x => `<div class="t2"><small>${age(x[0])}</small><b class="${x[1] ? 'up' : 'dn'}">${x[1] ? 'BUY' : 'SELL'}</b><span>${x[2].toFixed(2)} SOL</span><button data-trk="${esc(x[5])}">${short(x[5])}</button></div>`).join('') : '');
+    const warnings = riskFacts(t,v);
+    const sourceAge = Object.entries(t._provenance || {}).filter(([k])=>['price','mc','liq','m5'].includes(k)).map(([k,p])=>k+': '+SRC[p].name+' ('+age(p==='rpc'?t.audit?.ts:t.s[p]?.ts)+' ago)').join(' · ');
+    const riskDetails = `<p><small>Data coverage ${sc}% · not a safety rating. ${esc(sourceAge || 'Current market observations unavailable.')} A price decline is not proof of a rug pull. ${t.auditBusy ? 'Checking mint…' : t.audit && now-t.audit.ts < 300000 ? 'On-chain authority check available.' : 'On-chain authority check unavailable or expired.'}</small></p><p>${warnings.length ? warnings.map(x=>`<span class="fl">${esc(x)}</span>`).join('') : '<small>No listed flags in available data; not a safety guarantee.</small>'}</p>`;
+    setH('#d-s', (cv ? `<div class="kv"><span>Bonding curve</span><b>${v.cur.toFixed(0)}% to graduation</b></div><i class="cv" style="height:6px"><u style="width:${v.cur}%"></u></i>` : '') + `<div class="kv"><span>Price</span><b>$${pr(v.price)}</b></div><div class="kv"><span>Market cap</span><b>${usd(v.mc)}</b></div><div class="kv"><span>Liquidity</span><b>${usd(v.liq)}</b></div><div class="kv"><span>Change 1m / 5m / 1h / 24h</span><b><span class="${cls(v.m1)}">${pc(v.m1)}</span> / <span class="${cls(v.m5)}">${pc(v.m5)}</span> / <span class="${cls(v.h1)}">${pc(v.h1)}</span> / <span class="${cls(v.h24)}">${pc(v.h24)}</span></b></div><div class="kv"><span>Buys / sells 5m</span><b>${v.b5 == null ? '–' : b} / ${v.s5 == null ? '–' : s}</b></div><div class="kv"><span>Buys / sells 1h</span><b>${v.b1 == null ? '–' : v.b1} / ${v.s1 == null ? '–' : v.s1}</b></div><div class="kv"><span>Volume 5m / 1h / 24h</span><b>${usd(v.v5)} / ${usd(v.v1)} / ${usd(v.v24)}</b></div><div class="kv"><span>Traders seen</span><b>${v.traders == null ? t.tw.size || '–' : v.traders}</b></div><div class="kv"><span>Holders</span><b>${v.holders == null ? '–' : fm(v.holders)}</b></div><div class="kv"><span>Top 10 holders</span><b>${v.top10 == null ? '–' : v.top10.toFixed(1) + '%'}</b></div>${launchFacts}${riskDetails}<p>${v.mintOk == null ? '' : `<span class="fl${v.mintOk ? ' ok' : ''}">${v.mintOk ? 'Mint authority revoked' : 'Mint authority ACTIVE'}</span><span class="fl${v.frzOk ? ' ok' : ''}">${v.frzOk == null ? 'Freeze authority unknown' : v.frzOk ? 'Freeze authority revoked' : 'Freeze authority ACTIVE'}</span>`}${t.creator ? `<button class="btn o" data-trk="${esc(t.creator)}">Track dev ${short(t.creator)}</button>` : ''}</p><p><small>Reported launch/pool age ${age(t.created)} · seen by ${esc(srcs)}</small></p><p><a target="_blank" rel="noopener" href="https://pump.fun/coin/${encodeURIComponent(t.mint)}">pump.fun</a> · <a target="_blank" rel="noopener" href="https://dexscreener.com/solana/${encodeURIComponent(t.mint)}">DexScreener</a> · <a target="_blank" rel="noopener" href="https://solscan.io/token/${encodeURIComponent(t.mint)}">Solscan</a> · <a target="_blank" rel="noopener" href="https://rugcheck.xyz/tokens/${encodeURIComponent(t.mint)}">RugCheck</a></p>`);
+    setH('#d-t', tr.length ? '<h2 style="margin-top:6px">Observed trades</h2>' + tr.slice(-25).reverse().map(x => `<div class="t2"><small>${age(x[0])}</small><b class="${x[1] ? 'up' : 'dn'}">${x[1] ? 'BUY' : 'SELL'}</b><span>${x[2].toFixed(2)} SOL</span><button data-trk="${esc(x[5])}">${short(x[5])}</button></div>`).join('') : '');
 }
 setInterval(() => {
-    if (sel && !document.hidden)
-        detailTick();
+    if (sel && !document.hidden) { auditMint(sel); detailTick(); }
 }, 1500);
 /* ===== wallet tracker: pump.fun live feed + Solana RPC history, merged by signature ===== */
-const WL = ld('tr:wl', []), WT = ld('tr:wt', []), WLS = new Set(WL.map(w => w.a)), B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/, RPCS = ['https://api.mainnet-beta.solana.com', 'https://solana-rpc.publicnode.com', 'https://solana.drpc.org'], WSOL = 'So11111111111111111111111111111111111111112';
+const WL = ld('tr:wl', []).map(w=>({...w,_b:0})), WT = ld('tr:wt', []).map(x=>({...x,k:x.sig+':'+x.w+':'+x.mint+':'+x.side})), WLS = new Set(WL.map(w => w.a)), B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/, RPCS = ['https://api.mainnet-beta.solana.com', 'https://solana-rpc.publicnode.com', 'https://solana.drpc.org'], WSOL = 'So11111111111111111111111111111111111111112';
 let rpcI = 0, wsel = null, wdirty = 1;
 async function rpc(method, params) {
     let err;
@@ -2504,9 +2574,27 @@ async function rpc(method, params) {
     mark('rpc', false, err && err.message);
     throw err;
 }
+async function auditMint(t) {
+    if (!B58.test(t.mint) || t.auditBusy || Date.now()-(t.auditAttempt||0)<60000 || (t.audit && Date.now()-t.audit.ts<300000)) return;
+    t.auditAttempt=Date.now(); t.auditBusy=true;
+    try {
+        const r=await rpc('getAccountInfo',[t.mint,{encoding:'jsonParsed',commitment:'confirmed'}]);
+        const p=r && r.value && r.value.data && r.value.data.parsed;
+        if (!p || p.type !== 'mint' || !p.info) throw Error('Mint not verified');
+        const i=p.info;
+        const a={ts:Date.now(),mintOk:i.mintAuthority===null?true:typeof i.mintAuthority==='string'?false:null,frzOk:i.freezeAuthority===null?true:typeof i.freezeAuthority==='string'?false:null,extensions:Array.isArray(i.extensions)?i.extensions.map(e=>String(e.extension||'unknown')):[],largestPct:null};
+        t.audit=a; t._d=1;
+        try {
+            const l=await rpc('getTokenLargestAccounts',[t.mint,{commitment:'confirmed'}]);
+            const supply=Number(i.supply), largest=Math.max(0,...(l && Array.isArray(l.value)?l.value.map(x=>Number(x.amount)).filter(Number.isFinite):[]));
+            if(supply>0 && largest>0 && largest<=supply) a.largestPct=largest/supply*100;
+        } catch(e) { /* missing is not safe */ }
+    } catch(e) { t.audit=null; t._d=1; }
+    finally { t.auditBusy=false; if(sel===t) detailTick(); }
+}
 function addTrade(x, live) {
-    const key = x.sig + ':' + x.mint + ':' + x.side;
-    if (!x.sig || WT.some(y => y.k === key))
+    const key = x.sig + ':' + x.w + ':' + x.mint + ':' + x.side;
+    if (!x.sig || WT.some(y => y.sig===x.sig && y.w===x.w && y.mint===x.mint && y.side===x.side))
         return false;
     x.k = key;
     const t = tok(x.mint);
@@ -2514,13 +2602,12 @@ function addTrade(x, live) {
         need.add(x.mint);
     WT.push(x);
     WT.sort((a, b) => b.t - a.t);
-    if (WT.length > 400)
-        WT.length = 400;
+    if (WT.length > 400) WT.length = 400; // bounded local sample, not a complete ledger
     sv('tr:wt', WT);
     wdirty = 1;
     if (live) {
         const w = WL.find(y => y.a === x.w);
-        toast((w && w.label || short(x.w)) + ' ' + (x.side === 'buy' ? 'bought ' : 'sold ') + '$' + (t.sym || short(x.mint)) + (x.sol ? ' · ' + x.sol.toFixed(2) + ' SOL' : ''), 'g');
+        toast((w && w.label || short(x.w)) + ' ' + (({buy:'bought ',sell:'sold ',in:'received ',out:'sent '})[x.side] || 'recorded activity for ') + '$' + (t.sym || short(x.mint)) + (x.sol ? ' · ' + x.sol.toFixed(2) + ' SOL' : ''), 'g');
     }
     return true;
 }
@@ -2541,7 +2628,7 @@ function parseTx(tx, w, sig) {
         delete d[WSOL];
     }
     const es = Object.entries(d).filter(x => Math.abs(x[1]) > 0);
-    return es.map(([mint, amt]) => { const px = es.length === 1 && amt ? Math.abs(sol) / Math.abs(amt) : null; return { sig, w, t: (tx.blockTime || Date.now() / 1e3) * 1e3, side: amt > 0 && sol < 0 ? 'buy' : amt < 0 && sol > 0 ? 'sell' : amt > 0 ? 'in' : 'out', mint, tok: Math.abs(amt), sol: es.length === 1 ? Math.abs(sol) : null, mc: px && PUMPOK.test(mint) ? px * 1e9 * SOLUSD : null, src: 'Solana RPC' }; });
+    return es.map(([mint, amt]) => { const px = es.length === 1 && amt ? Math.abs(sol) / Math.abs(amt) : null; return { sig, w, t: (tx.blockTime || Date.now() / 1e3) * 1e3, side: amt > 0 ? 'in' : 'out', mint, tok: Math.abs(amt), sol: null, mc: null, src: 'Solana RPC (balance change)' }; });
 }
 async function walletSync(w, initial) {
     if (w._b)
@@ -2551,20 +2638,22 @@ async function walletSync(w, initial) {
     wdirty = 1;
     try {
         const sg = await rpc('getSignaturesForAddress', [w.a, Object.assign({ limit: initial ? 25 : 40 }, w.last ? { until: w.last } : {})]);
-        const list = sg.filter(x => !x.err && !WT.some(y => y.sig === x.signature)).reverse();
+        const list = sg.filter(x => !x.err && !WT.some(y => y.sig === x.signature && y.w === w.a)).reverse();
+        let incomplete = sg.length >= (initial ? 25 : 40);
+        let failed = false;
         for (const x of list) {
             try {
                 const tx = await rpc('getTransaction', [x.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]);
+                if (!tx) throw Error('Transaction unavailable');
                 parseTx(tx, w.a, x.signature).forEach(y => addTrade(y, !initial && !w.fresh));
             }
-            catch (e) { }
+            catch (e) { failed = true; }
             await sleep(initial ? 250 : 150);
         }
-        if (sg.length)
-            w.last = sg[0].signature;
-        w.sync = 'Live';
+        if (sg.length && !failed) w.last = sg[0].signature;
+        w.sync = failed ? 'History incomplete · retry' : incomplete ? 'Partial history' : 'Recent sample';
         w.fresh = 0;
-        sv('tr:wl', WL);
+        sv('tr:wl', WL.map(({_b,...rest})=>rest));
     }
     catch (e) {
         w.sync = 'RPC busy, retrying';
@@ -2585,7 +2674,7 @@ function addWallet(a, label) {
     const w = { a, label: (label || '').trim(), added: Date.now(), sync: 'Starting…' };
     WL.push(w);
     WLS.add(a);
-    sv('tr:wl', WL);
+    sv('tr:wl', WL.map(({_b,...rest})=>rest));
     wsend({ method: 'subscribeAccountTrade', keys: [a] });
     wsel = a;
     walletSync(w, true);
@@ -2605,19 +2694,19 @@ function positions(a) {
         else if (x.side === 'sell') {
             p.s += sol;
             p.net -= x.tok;
-        }
+        } else if(x.side==='in') p.net+=x.tok; else if(x.side==='out') p.net-=x.tok;
         p.last = Math.max(p.last, x.t);
     });
-    return Object.values(g).sort((x, y) => y.last - x.last).map(p => { const t = T.get(p.mint), v = t ? V(t) : {}, held = p.net > 0 && v.price ? p.net * v.price / SOLUSD : 0; return Object.assign(p, { sym: t && t.sym || short(p.mint), pl: v.price || p.net <= 0 ? p.s + held - p.b : null, open: p.net > 0 }); });
+    return Object.values(g).sort((x,y)=>y.last-x.last).map(p=>Object.assign(p,{sym:T.get(p.mint)?.sym||short(p.mint),pl:null}));
 }
 const wrows = new Map();
 function wrender() {
     if (!wdirty && !document.querySelector('#vw.on'))
         return;
     const cards = $('#wcards');
-    cards.innerHTML = WL.length ? WL.map(w => { const tr = WT.filter(x => x.w === w.a), ps = positions(w.a).slice(0, 4); return `<div class="wc${wsel === w.a ? ' on' : ''}" data-wf="${w.a}"><div class="nm"><b>${esc(w.label || short(w.a))}</b><small>${esc(w.sync || '')}</small></div><small>${short(w.a)} · ${tr.length} trades${tr[0] ? ' · last ' + age(tr[0].t) + ' ago' : ''}</small>${ps.map(p => `<div class="kv"><span>$${esc(p.sym)} ${p.open ? '(holding)' : '(closed)'}</span><b class="${cls(p.pl)}">${p.pl == null ? '–' : (p.pl > 0 ? '+' : '') + p.pl.toFixed(2) + ' SOL'}</b></div>`).join('')}<p><button class="btn o" data-wd="${w.a}">Remove</button> <a target="_blank" rel="noopener" href="https://solscan.io/account/${w.a}">Solscan</a></p></div>`; }).join('') : '<div class="empty"><b>No wallets yet</b>Paste an address above to follow every buy and sell.</div>';
-    const list = WT.filter(x => !wsel || x.w === wsel);
-    $('#wnt').textContent = (wsel ? 'Showing ' + (WL.find(w => w.a === wsel) || {}).label + ' ' : 'Showing all tracked wallets ') + '· ' + list.length + ' trades · sources: PumpPortal live + Solana RPC, merged by signature';
+    cards.innerHTML = WL.length ? WL.map(w => { const tr = WT.filter(x => x.w === w.a), ps = positions(w.a).slice(0, 4); return `<div class="wc${wsel === w.a ? ' on' : ''}" data-wf="${w.a}"><div class="nm"><b>${esc(w.label || short(w.a))}</b><small>${esc(w.sync || '')}</small></div><small>${short(w.a)} · ${tr.length} trades${tr[0] ? ' · last ' + age(tr[0].t) + ' ago' : ''}</small>${ps.map(p => `<div class="kv"><span>$${esc(p.sym)} (observed)</span><b>–</b></div>`).join('')}<p><button class="btn o" data-wd="${w.a}">Remove</button> <a target="_blank" rel="noopener" href="https://solscan.io/account/${w.a}">Solscan</a></p></div>`; }).join('') : '<div class="empty"><b>No wallets yet</b>Paste an address above to review observed wallet records.</div>';
+    const list = WT.filter(x => WLS.has(x.w) && (!wsel || x.w === wsel));
+    $('#wnt').textContent = (wsel ? 'Showing ' + (WL.find(w => w.a === wsel) || {}).label + ' ' : 'Showing all tracked wallets ') + '· ' + list.length + ' observed records · incomplete history; not verified balances or P&L';
     const f = $('#wfeed');
     if (!f._init) {
         f._init = 1;
@@ -2639,7 +2728,7 @@ function wrender() {
             el.className = 'tr';
             wrows.set(x.k, el);
         }
-        const h = `<small>${age(x.t)}</small><b class="${x.side === 'buy' ? 'up' : x.side === 'sell' ? 'dn' : ''}">${x.side.toUpperCase()}</b><span><b>$${esc(t && t.sym || short(x.mint))}</b><br><small>${esc(w && w.label || short(x.w))} · ${x.src} · <a target="_blank" rel="noopener" href="https://solscan.io/tx/${x.sig}">tx</a></small></span><span>${x.sol == null ? '–' : x.sol.toFixed(3)}<br><small>${x.sol ? usd(x.sol * SOLUSD) : ''}</small></span><span>${fm(x.tok)}<br><small>${x.sol && x.tok ? '@ ' + pr(x.sol * SOLUSD / x.tok) : ''}</small></span><span>${x.mc ? usd(x.mc) : '–'}<br>${v.price && x.sol && x.tok ? `<small class="${cls(v.price / (x.sol * SOLUSD / x.tok) - 1)}">now ${pc((v.price / (x.sol * SOLUSD / x.tok) - 1) * 100)}</small>` : ''}</span>`;
+        const h = `<small>${age(x.t)}</small><b class="${x.side === 'buy' ? 'up' : x.side === 'sell' ? 'dn' : ''}">${x.side.toUpperCase()}</b><span><b>$${esc(t && t.sym || short(x.mint))}</b><br><small>${esc(w && w.label || short(x.w))} · ${esc(x.src)} · <a target="_blank" rel="noopener" href="https://solscan.io/tx/${encodeURIComponent(x.sig)}">tx</a></small></span><span>${x.sol == null ? '–' : x.sol.toFixed(3)}<br><small>${''}</small></span><span>${fm(x.tok)}<br><small>${''}</small></span><span>${x.mc ? usd(x.mc) : '–'}<br>${''}</span>`;
         if (el._h !== h) {
             el._h = h;
             el.innerHTML = h;
@@ -2652,7 +2741,9 @@ function wrender() {
 }
 /* ===== tabs, events, loops ===== */
 function setTab(x, first) {
+    if(!['trench','radar','wallets'].includes(x)) x='radar';
     const was = tabv;
+    if(!first && was!==x) { q=''; $('#q').value=''; $('.sw').classList.remove('has'); clearTimeout(qT); closeSheet(); sel=null; $('#pn').innerHTML='<div class="empty"><b>Pick a token</b>Click any row for market observations and risk details.</div>'; }
     tabv = x;
     sv('tr:tab', x);
     $$('#tb button').forEach(b => b.classList.toggle('on', b.dataset.tab === x));
@@ -2681,27 +2772,45 @@ function setTab(x, first) {
         requestAnimationFrame(() => { seg('#so'); seg('#wn'); seg('#ml'); refreshList(false); });
     }
 }
-function refreshAll() {
-    toast('Refreshing every source…');
-    for (const k in CAND)
-        CAND[k].t = 0;
-    pollPf();
-    pollJup('/recent');
-    pollJup('/toptrending/1h?limit=100');
-    pollGt(['new_pools?page=1', 'new_pools?page=2', 'trending_pools?page=1']);
-    pollDex();
-    loadSol();
-    enrich().then(() => setTimeout(() => toast('Updated · ' + T.size + ' tokens from ' + $$('#pop .live:not(.off):not(.bad)').length + ' live sources', 'g'), 1800));
-    wdirty = 1;
-    WL.forEach(w => walletSync(w));
+let refreshing=false, refreshSummary="";
+async function refreshAll() {
+    if(refreshing) return;
+    refreshing=true;
+    const button=$('#rf2'), label=$('#rfLabel'), spin=button.querySelector('.refresh-spin');
+    const feedback=(message)=>{
+        refreshSummary=message;
+        $('#refreshAnnouncement').textContent=message;
+        if(tabv!=='wallets') refreshList(false);
+    };
+    button.disabled=true; button.setAttribute('aria-busy','true'); spin.hidden=false; label.textContent='Refreshing…';
+    try {
+        feedback('Refresh in progress');
+        const jobs=[pollPf(),pollJup('/recent'),pollJup('/toptrending/1h?limit=100'),pollGt(['new_pools?page=1','new_pools?page=2','trending_pools?page=1','dexes/pumpswap/pools?page=1']),pollDex(),loadSol()];
+        const results=await Promise.allSettled(jobs);
+        const extra=await Promise.allSettled([enrich()]);
+        const states=[...results,...extra].map(r=>r.status==='fulfilled'?r.value:'failed').filter(x=>x!=='skipped');
+        const ok=states.filter(x=>x==='ok').length, partial=states.filter(x=>x==='partial').length, failed=states.length-ok-partial;
+        const outcome=failed||partial ? (ok||partial?'Refresh partial':'Refresh failed') : 'Refresh complete';
+        feedback(outcome+' · '+ok+'/'+states.length+' checks complete'+(partial?' · '+partial+' partial':'')+(failed?' · '+failed+' failed':'')+' · '+new Date().toLocaleTimeString());
+        srcPop();
+        toast(refreshSummary,failed||partial?'':'g');
+        wdirty=1;
+        WL.forEach(w=>walletSync(w));
+    } catch(e) {
+        feedback('Refresh error · '+new Date().toLocaleTimeString());
+        toast('Refresh error; some observations may be unavailable.');
+    } finally {
+        refreshing=false; button.disabled=false; button.setAttribute('aria-busy','false'); spin.hidden=true; label.textContent='Refresh';
+    }
 }
 function srcPop() {
     const now = Date.now();
+    if (!SOLUSD || now-SOL_TS>=120000) $('#sol').textContent='SOL –';
     let ok = 0;
     const rows = Object.values(SRC).map(s => {
         const live = s.ok && (s === SRC.ws
             ? !!ws && ws.readyState === 1 && now - s.t < WS_STALE_MS
-            : now - s.t < 18e4 || s.name === 'Solana RPC');
+            : now - s.t < 18e4);
         if (live)
             ok++;
         return `<div><i class="live${live ? '' : s.ok === false ? ' bad' : ' off'}"></i><b>${s.name}</b><small>${live ? (s.c || 0) + ' items · ' + age(s.t) + ' ago' : s.ok === null ? 'waiting' : esc(s.err || 'idle')}</small></div>`;
@@ -2711,13 +2820,15 @@ function srcPop() {
     $('#lv').className = 'live' + (ok >= 3 ? '' : ok >= 1 ? ' off' : ' bad');
 }
 function openSheet() { }
-function closeSheet() { $('#sh').classList.remove('open'); $('#bd').classList.remove('on'); }
+function closeSheet() { $('#sh').classList.remove('open'); $('#bd').classList.remove('on'); sel=null; els.forEach(el=>el.classList.remove('on')); $('#pn').innerHTML='<div class="empty"><b>Pick a token</b>Click any row for market observations and risk details.</div>'; }
 function presets() {
     const c = $('#presets');
     if (!c.children.length)
         c.innerHTML = PRS.map(x => `<button class="pre" data-p="${x[0]}">${x[1]}</button>`).join('');
     c.querySelectorAll('[data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === pre));
     $('#wn').classList.toggle('hid', !['hot', 'gain', 'vol'].includes(pre));
+    $('#pp').style.display = pre === 'star' ? 'none' : '';
+    $('#ml').style.display = pre === 'star' ? 'none' : '';
     seg('#wn');
 }
 document.addEventListener('click', e => {
@@ -2730,7 +2841,7 @@ document.addEventListener('click', e => {
     const D = t.dataset;
     if (D.tab)
         setTab(D.tab);
-    else if (D.s) {
+    else if (D.s !== undefined) {
         const m = D.s;
         W.has(m) ? W.delete(m) : W.add(m);
         sv('tr:w', [...W]);
@@ -2745,7 +2856,8 @@ document.addEventListener('click', e => {
         setTab('wallets');
     }
     else if (D.cp) {
-        navigator.clipboard.writeText(D.cp).then(() => { t.textContent = 'Copied'; }, () => { t.textContent = 'Copy failed'; });
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(D.cp).then(() => { t.textContent = 'Copied'; }, () => { toast('Copy failed; select the displayed mint manually.'); });
+        else toast('Clipboard unavailable; select the displayed mint manually.');
     }
     else if (D.p) {
         pre = D.p;
@@ -2783,7 +2895,7 @@ document.addEventListener('click', e => {
         if (i >= 0) {
             WL.splice(i, 1);
             WLS.delete(D.wd);
-            sv('tr:wl', WL);
+            sv('tr:wl', WL.map(({_b,...rest})=>rest));
             wsend({ method: 'unsubscribeAccountTrade', keys: [D.wd] });
             if (wsel === D.wd)
                 wsel = null;
@@ -2804,6 +2916,7 @@ document.addEventListener('click', e => {
     }
     else if (t.id === 'xq') {
         q = '';
+        clearTimeout(qT);
         $('#q').value = '';
         $('.sw').classList.remove('has');
         refreshList(true);
@@ -2927,11 +3040,9 @@ function prune() {
         wsend({ method: 'unsubscribeTokenTrade', keys: un });
 }
 const every = (f, ms) => {
-    f();
-    setInterval(() => {
-        if (!document.hidden)
-            f();
-    }, ms);
+    let busy=false;
+    const run=async()=>{if(busy||document.hidden)return;busy=true;try{await f();}catch(e){}finally{busy=false;}};
+    run(); setInterval(run,ms);
 };
 $('#hd').classList.toggle('on', hideDead);
 wsConnect();
@@ -2958,6 +3069,10 @@ setInterval(() => {
     }
 }, 2000);
 setInterval(() => { WL.forEach(w => walletSync(w)); }, 12e3);
+$('#vw .pf small').textContent='Recent observed activity from PumpPortal and Solana RPC. History may be incomplete.';
+$('.gr.hd span:last-child').textContent='Data %';
+$('#hd').childNodes.forEach(n=>{if(n.nodeType===3 && n.textContent.includes('Hide dead')) n.textContent='Hide inactive';});
+W.forEach(m=>{if(B58.test(m)){tok(m);need.add(m);}});
 presets();
 WL.forEach(w => { w.sync = 'Syncing…'; walletSync(w); });
 setTab(tabv, 1);
